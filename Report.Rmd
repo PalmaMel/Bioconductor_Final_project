@@ -1,0 +1,15 @@
+---
+title: "Reporte"
+author: "Palma Luna Melissa"
+date: "2025-02-02"
+output: html_document
+toc-title: Índice de contenidos
+---
+
+# Recolección de datos y especifícaciones 
+
+```{R}
+# Load packages
+library (usethis)
+
+```
