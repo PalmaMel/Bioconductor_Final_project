@@ -2,7 +2,7 @@
 ##           R_packages
 ## ---------------------------------
 library("recount3")
-
+library(ExploreModelMatrix)
 ## ------------------------------
 ##         Data_Download
 ## ------------------------------
@@ -46,7 +46,7 @@ colData(project_vit_D)[
 ]
 
 ## ------------------------
-##         Models
+##         Model
 ## ------------------------
 
 ## Change character to factor
@@ -60,8 +60,27 @@ summary(as.data.frame(colData(project_vit_D)[
   grepl("^sra_attribute.[cell_type|treatment]", colnames(colData(project_vit_D)))
   ]))
 
-#-----------------------
+## save data
+proj_cpy<-project_vit_D
+## project_vit_D<-proj_cpy # reverse
 
+## Proportion of genes
+project_vit_D$assigned_gene_prop<-project_vit_D$recount_qc.gene_fc_count_all.assigned / project_vit_D$recount_qc.gene_fc_count_all.total
+summary(project_vit_D$assigned_gene_prop)
+## Note: The best sample has around 0.6430 of lectures assigned and 75% of the samples have less than 0.5697 of the lectures assigned
+## Quality is not the best
 
+## ---------
+with(colData(project_vit_D), plot(sra_attribute.treatment,assigned_gene_prop))
+with(colData(project_vit_D), tapply(assigned_gene_prop, sra_attribute.treatment, summary))
+## Note: This...
+
+##----------------------
+##       Filtering
+##----------------------
+hist(project_vit_D$assigned_gene_prop)
+table(project_vit_D$assigned_gene_prop < 0.46)
+project_vit_D <- project_vit_D[, project_vit_D$assigned_gene_prop > 0.46]
+gene_means <- rowMeans(assay(project_vit_D, "counts"))
 
 
