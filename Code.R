@@ -80,7 +80,10 @@ with(colData(project_vit_D), tapply(assigned_gene_prop, sra_attribute.treatment,
 ##----------------------
 hist(project_vit_D$assigned_gene_prop)
 table(project_vit_D$assigned_gene_prop < 0.46)
+
 project_vit_D <- project_vit_D[, project_vit_D$assigned_gene_prop > 0.46]
 gene_means <- rowMeans(assay(project_vit_D, "counts"))
+project_vit_D <- project_vit_D[gene_means > 0, ]
+round(nrow(project_vit_D) / nrow(proj_cpy) * 100, 2)
 
 
