@@ -3,6 +3,7 @@
 ## ---------------------------------
 library("recount3")
 library(ExploreModelMatrix)
+library("edgeR")
 ## ------------------------------
 ##         Data_Download
 ## ------------------------------
@@ -61,29 +62,48 @@ summary(as.data.frame(colData(project_vit_D)[
   ]))
 
 ## save data
-proj_cpy<-project_vit_D
-## project_vit_D<-proj_cpy # reverse
+unfiltered_vitamin_D<-project_vit_D
+## project_vit_D<-unfiltered_vitamin_D # reverse
 
 ## Proportion of genes
 project_vit_D$assigned_gene_prop<-project_vit_D$recount_qc.gene_fc_count_all.assigned / project_vit_D$recount_qc.gene_fc_count_all.total
 summary(project_vit_D$assigned_gene_prop)
 ## Note: The best sample has around 0.6430 of lectures assigned and 75% of the samples have less than 0.5697 of the lectures assigned
-## Quality is not the best
+## Quality is not the best ...
 
 ## ---------
 with(colData(project_vit_D), plot(sra_attribute.treatment,assigned_gene_prop))
 with(colData(project_vit_D), tapply(assigned_gene_prop, sra_attribute.treatment, summary))
+with(colData(project_vit_D), tapply(assigned_gene_prop, sra_attribute.cell_type, summary))
 ## Note: This...
 
 ##----------------------
 ##       Filtering
 ##----------------------
-hist(project_vit_D$assigned_gene_prop)
-table(project_vit_D$assigned_gene_prop < 0.46)
 
-project_vit_D <- project_vit_D[, project_vit_D$assigned_gene_prop > 0.46]
+## 1
+hist(project_vit_D$assigned_gene_prop)
+project_vit_D <- project_vit_D[, project_vit_D$assigned_gene_prop > 0.4]
+project_vit_D <- project_vit_D[gene_means > 0.1, ]
+round(nrow(project_vit_D) / nrow(unfiltered_vitamin_D) * 100, 2)
+## 2
+hist(project_vit_D$assigned_gene_prop)
 gene_means <- rowMeans(assay(project_vit_D, "counts"))
-project_vit_D <- project_vit_D[gene_means > 0, ]
-round(nrow(project_vit_D) / nrow(proj_cpy) * 100, 2)
+summary(gene_means)
+project_vit_D <- project_vit_D[gene_means > 0.1, ]
+round(nrow(project_vit_D) / nrow(unfiltered_vitamin_D) * 100, 2)
+
+##----------------------
+##  Data Normalization
+##----------------------
+
+dge<-DGEList(
+  counts = assay(project_vit_D, "counts"),
+  genes = rowData(project_vit_D)
+)
+dge <- calcNormFactors(dge)
+
+
+
 
 
