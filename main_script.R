@@ -4,9 +4,9 @@
 library("recount3")
 library(ExploreModelMatrix)
 library("edgeR")
-## ------------------------------
+## ---------------------------------
 ##         Data_Download
-## ------------------------------
+## ---------------------------------
 ## Project: SRP124965
 human_projects <- available_projects()
 
@@ -15,9 +15,9 @@ project_vit_D <- create_rse(subset(human_projects,
   project == "SRP124965" & project_type == "data_sources"
 ))
 
-## ------------------------------
-##       Explore_object
-## ------------------------------
+## ----------------------------------------
+##             Explore_object
+## ----------------------------------------
 
 project_vit_D
 
@@ -33,7 +33,6 @@ project_vit_D
 ## ------Change_to_read_counts------
 assay(project_vit_D, "counts") <- compute_read_counts(project_vit_D)
 
-
 ##-------Facilitate Metadata access------
 
 # project_vit_D$sra.sample_attributes[1:12] # inspect attributes
@@ -46,9 +45,9 @@ colData(project_vit_D)[
   grepl("^sra_attribute", colnames(colData(project_vit_D)))
 ]
 
-## ------------------------
-##         Model
-## ------------------------
+## ----------------------------------------
+##                  Model
+## ----------------------------------------
 
 ## Change character to factor
 project_vit_D$sra_attribute.cell_type <- factor(project_vit_D$sra_attribute.cell_type)
@@ -60,10 +59,6 @@ summary(as.data.frame(colData(project_vit_D)[
   ,
   grepl("^sra_attribute.[cell_type|treatment]", colnames(colData(project_vit_D)))
   ]))
-
-## save data
-unfiltered_vitamin_D<-project_vit_D
-## project_vit_D<-unfiltered_vitamin_D # reverse
 
 ## Proportion of genes
 project_vit_D$assigned_gene_prop<-project_vit_D$recount_qc.gene_fc_count_all.assigned / project_vit_D$recount_qc.gene_fc_count_all.total
@@ -77,33 +72,13 @@ with(colData(project_vit_D), tapply(assigned_gene_prop, sra_attribute.treatment,
 with(colData(project_vit_D), tapply(assigned_gene_prop, sra_attribute.cell_type, summary))
 ## Note: This...
 
-##----------------------
-##       Filtering
-##----------------------
+## save data
+unfiltered_vitamin_D<-project_vit_D
+# project_vit_D<-unfiltered_vitamin_D # reverse
 
-## 1
+##-------------------------------------------
+##                  Filtering
+##-------------------------------------------
 hist(project_vit_D$assigned_gene_prop)
-project_vit_D <- project_vit_D[, project_vit_D$assigned_gene_prop > 0.4]
-project_vit_D <- project_vit_D[gene_means > 0.1, ]
-round(nrow(project_vit_D) / nrow(unfiltered_vitamin_D) * 100, 2)
-## 2
-hist(project_vit_D$assigned_gene_prop)
-gene_means <- rowMeans(assay(project_vit_D, "counts"))
-summary(gene_means)
-project_vit_D <- project_vit_D[gene_means > 0.1, ]
-round(nrow(project_vit_D) / nrow(unfiltered_vitamin_D) * 100, 2)
-
-##----------------------
-##  Data Normalization
-##----------------------
-
-dge<-DGEList(
-  counts = assay(project_vit_D, "counts"),
-  genes = rowData(project_vit_D)
-)
-dge <- calcNormFactors(dge)
-
-
-
-
-
+## In this step two options were plausible: Don't Filter and Filtering those below the Mean
+## further analysis on both can be found at the no_filter.R and Below_Mean.R scripts
