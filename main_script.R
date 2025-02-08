@@ -6,8 +6,11 @@ setwd("~/Desktop/Bioconductor_Final_project")
 ##           R_packages
 ## ---------------------------------
 library("recount3")
-library(ExploreModelMatrix)
 library("edgeR")
+library("limma")
+library("ggplot2")
+library("pheatmap")
+library("ExploreModelMatrix")
 ## ---------------------------------
 ##         Data_Download
 ## ---------------------------------

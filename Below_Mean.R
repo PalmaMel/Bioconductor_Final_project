@@ -1,14 +1,8 @@
 ##-------------------------------------------
 ##                  Filtering
 ##-------------------------------------------
-## ------------------------------
-##           R_packages
-## ------------------------------
-library("limma")
-library("ggplot2")
-library("pheatmap")
 ## ----------------------------------------
-## option 2:Filtering those below the Mean
+## option 2: Filtering those below the Mean
 ## ----------------------------------------
 ## We are gonna continue with the Option: `Filtering those below the Mean`
 ## further analysis of the Option 1: `Filtering those below the Mean` is in the script no_filter.R
@@ -108,11 +102,11 @@ volcanoplot(eb_results_BM, coef = 2, highlight = 3, names = de_results_BM$gene_n
 DE_below_MEan_df <- as.data.frame(colData(
   below_MEAN_project_vit_D)[, c("sra_attribute.cell_type", "sra_attribute.treatment", "assigned_gene_prop")])
 
-colnames(DE_below_MEan_df) <- c("cell type", "Treatment", "Porportion genes")
+colnames(DE_below_MEan_df) <- c("cell_type", "Treatment", "gene_prop")
 ## get the 50 most significant genes
 BM_exprs_heatmap <- vGene_BM$E[rank(de_results_BM$adj.P.Val) <= 50, ]
 
-identical(rowRanges(below_MEAN_project_vit_D)$gene_id, de_results_BM$gene_id)
+# identical(rowRanges(below_MEAN_project_vit_D)$gene_id, de_results_BM$gene_id)
 
 ## Change IDs to names
 gene_names_BM <- rownames(BM_exprs_heatmap)
@@ -133,6 +127,11 @@ pheatmap(
 ##        MODEL MATRIX
 ## ----------------------------
 
+M_matrix_BM <- ExploreModelMatrix::VisualizeDesign(
+  sampleData = DE_below_MEan_df,
+  designFormula = ~ 0 + cell_type + Treatment,
+  textSizeFitted = 2
+)
 
-
+cowplot::plot_grid(plotlist = M_matrix_BM$plotlist)
 

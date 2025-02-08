@@ -1,12 +1,6 @@
 ##-------------------------------------------
 ##                  Filtering
 ##-------------------------------------------
-## ---------------------------------
-##           R_packages
-## ---------------------------------
-library("limma")
-library("ggplot2")
-library("pheatmap")
 ## ----------------------------------------
 ##        option 1: Don't Filter
 ## ----------------------------------------
@@ -107,7 +101,7 @@ volcanoplot(eb_results, coef = 2, highlight = 3, names = de_results$gene_name)
 ## ----Heatmap----
 DE_no_filter_df <- as.data.frame(colData(project_vit_D)[, c("sra_attribute.cell_type", "sra_attribute.treatment", "assigned_gene_prop")])
 
-colnames(DE_no_filter_df) <- c("cell type", "Treatment", "Porportion genes")
+colnames(DE_no_filter_df) <- c("cell_type", "Treatment", "gene_prop")
 ## get the 50 most significant genes
 exprs_heatmap <- vGene$E[rank(de_results$adj.P.Val) <= 50, ]
 
@@ -130,4 +124,10 @@ pheatmap(
 ## ----------------------------
 ##        MODEL MATRIX
 ## ----------------------------
+M_matrix <- ExploreModelMatrix::VisualizeDesign(
+  sampleData = DE_no_filter_df,
+  designFormula = ~ 0 + cell_type + Treatment,
+  textSizeFitted = 2
+)
 
+cowplot::plot_grid(plotlist = M_matrix$plotlist)
