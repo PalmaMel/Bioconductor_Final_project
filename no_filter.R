@@ -39,11 +39,10 @@ dge <- calcNormFactors(dge)
 ## ----------------------------
 ##            Graph
 ## ----------------------------
-## This boxplot ...
+## -------------boxplot---------------
 ggplot(as.data.frame(colData(project_vit_D)),
        aes(x = sra_attribute.treatment,y = assigned_gene_prop, color = sra_attribute.treatment)) +
   geom_boxplot() +
-  stat_summary(fun = mean, geom = "point", shape = 4, size = 3, color = "black") + # Mean in a cross shape
   facet_wrap(~ sra_attribute.cell_type) + # subgraph for each celltype
   theme_bw() +
   labs(title = "Distribution of Assigned Gene Prop according to Treatment and Cell Type",
