@@ -4,54 +4,131 @@
 ## ---------------------------------
 ##           R_packages
 ## ---------------------------------
-library("recount3")
-library(ExploreModelMatrix)
-library("edgeR")
 library("limma")
+library("ggplot2")
+library("pheatmap")
 ## ----------------------------------------
 ##        option 1: Don't Filter
 ## ----------------------------------------
 ## We are gonna continue with the Option: `Don't Filter`
-## further analysis of the Option: `Filtering those below the Mean` is in the script Below_Mean_3.R
+## further analysis of the Option 2: `Filtering those below the Mean`
+## is in the script Below_Mean.R
 
-## option 2: Don't Filter
+## Save the average expression of a gene in all samples
 gene_means <- rowMeans(assay(project_vit_D, "counts"))
 summary(gene_means)
+
+## Delete genes with low mean expression
 project_vit_D <- project_vit_D[gene_means > 0.1, ]
-round(nrow(project_vit_D) / nrow(unfiltered_vitamin_D) * 100, 2) ## 57.68
+## Percent of remaining genes:
+round(nrow(project_vit_D) / nrow(unfiltered_vitamin_D) * 100, 2) ## 57.68%
 
 # Number of samples:
-(project_vit_D)
+dim(project_vit_D)
 ## 36834    12
 ## ----------------------------------------
 ##          Data Normalization
 ## ----------------------------------------
-
+## edgeR object creation
 dge<-DGEList(
   counts = assay(project_vit_D, "counts"),
   genes = rowData(project_vit_D)
 )
+## Normalization with the TMM method (default)
 dge <- calcNormFactors(dge)
+## ----------------------------
+##            Graph
+## ----------------------------
+## This boxplot ...
+ggplot(as.data.frame(colData(project_vit_D)),
+       aes(x = sra_attribute.treatment,y = assigned_gene_prop, color = sra_attribute.treatment)) +
+  geom_boxplot() +
+  stat_summary(fun = mean, geom = "point", shape = 4, size = 3, color = "black") + # Mean in a cross shape
+  facet_wrap(~ sra_attribute.cell_type) + # subgraph for each celltype
+  theme_bw() +
+  labs(title = "Distribution of Assigned Gene Prop according to Treatment and Cell Type",
+       x = "Treatment", y = "Assigned Gene Prop") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # labels and text
 
-mod <- model.matrix(~ sra_attribute.cell_type + sra_attribute.treatment + assigned_gene_prop,
+## ----------------------------
+## Creating the statistic model
+## ----------------------------
+## Model as a Function of the variables treatment, cell_type and assigned_gene_prop
+models <- model.matrix(~ sra_attribute.cell_type + sra_attribute.treatment + assigned_gene_prop,
                     data = colData(project_vit_D)
-)
-colnames(mod)
-
-
-
-vGene <- voom(dge, mod, plot = TRUE)
-
+                    )
+## names of the columns in the matrix
+colnames(models)
+## ----------------------------------------
+##    Differential expression analysis
+## ----------------------------------------
+## ----------------------------
+##            Graph
+## ----------------------------
+## -----Dispersion graph of mean-variance trend----
+vGene <- voom(dge, models, plot = TRUE)
+## ----DE-----
+## Fitting a linear Model and using an empirical Bayes Method
 eb_results <- eBayes(lmFit(vGene))
-
+## Extract a table of the DE genes
 de_results <- topTable(
   eb_results,
   coef = 2,
   number = nrow(project_vit_D),
   sort.by = "none"
 )
+## Dimensions of the results
+## 16
+dim(de_results)
+##  Count the number of genes with a p-value less than 0.05
+table(de_results$adj.P.Val < 0.05)
 
-head(de_results)
+## ----------------------------------------
+##               Results
+## ----------------------------------------
+## ---------------------------
+##            Graph
+## ---------------------------
+## Relationship between average and the change in gene expression
+plotMA(eb_results, coef = 2)
+## ----------------------------
+##            Graph
+## ---------------------------
+## ----Volcano Plot----
+## Statistical significance and magnitude of the change in expression
+## highlight 3 of the most significant genes
+volcanoplot(eb_results, coef = 2, highlight = 3, names = de_results$gene_name)
 
+## ----------------------------------------
+##          Visualizing DE genes
+## ----------------------------------------
+## ----------------------------
+##            Graph
+## ---------------------------
+## ----Heatmap----
+DE_no_filter_df <- as.data.frame(colData(project_vit_D)[, c("sra_attribute.cell_type", "sra_attribute.treatment", "assigned_gene_prop")])
 
+colnames(DE_no_filter_df) <- c("cell type", "Treatment", "Porportion genes")
+## get the 50 most significant genes
+exprs_heatmap <- vGene$E[rank(de_results$adj.P.Val) <= 50, ]
+
+identical(rowRanges(project_vit_D)$gene_id, de_results$gene_id)
+
+## Change IDs to names
+gene_names <- rownames(exprs_heatmap)
+rownames(exprs_heatmap) <- rowRanges(project_vit_D)$gene_name[
+  match(rownames(exprs_heatmap), rowRanges(project_vit_D)$gene_id)
+]
+## Create Heatmap
+pheatmap(
+  exprs_heatmap,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  show_rownames = TRUE,
+  show_colnames = FALSE,
+  annotation_col = DE_no_filter_df ## labels
+)
+## ----------------------------
+##        MODEL MATRIX
+## ----------------------------
 
