@@ -122,16 +122,3 @@ pheatmap(
   show_colnames = FALSE,
   annotation_col = DE_below_MEan_df ## labels
 )
-
-## ----------------------------
-##        MODEL MATRIX
-## ----------------------------
-
-M_matrix_BM <- ExploreModelMatrix::VisualizeDesign(
-  sampleData = DE_below_MEan_df,
-  designFormula = ~ 0 + cell_type + Treatment,
-  textSizeFitted = 2
-)
-
-cowplot::plot_grid(plotlist = M_matrix_BM$plotlist)
-

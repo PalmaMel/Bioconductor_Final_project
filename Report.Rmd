@@ -1,51 +1,200 @@
 ---
-title: "Report"
+title: "Index"
 author: "Palma Luna Melissa"
 date: "2025-02-02"
-output: html_document
+output:
+  html_document:
+    toc: true
+    toc_depth: '5'
+    df_print: paged
 toc-title: Index
 ---
 
 # Differential expression analysis of the [recount3](https://doi.org/doi:10.18129/B9.bioc.recount3) project: **SRP124965**
 
-A Differential expression analysis was performed on the **Epigenome-wide Effects of Vitamin-D on Bronchial Epithelial Cells using ATAC-Seq and RNA-seq** study from the [Recount3 Study Explorer](https://jhubiostatistics.shinyapps.io/recount3-study-explorer/) making use of some [Bioconductor](https://bioconductor.org) tools.
+A Differential expression analysis was conducted on the study **"Epigenome-wide Effects of Vitamin-D on Bronchial Epithelial Cells using ATAC-Seq and RNA-seq"**, obtained from the [Recount3 Study Explorer](https://jhubiostatistics.shinyapps.io/recount3-study-explorer/), to  assess the effect of Vitamin D3 (also refereed as calcitriol) across different cell lines of human bronchial epithelial cells, utilizing various [Bioconductor](https://bioconductor.org) tools. 
 
 **Project description in the Recount3:**
 Vitamin D has been associated with viral respiratory infections, the main cause of severe asthma exacerbations in children. We used ATAC-Seq to evaluate the effect of vitamin D on chromatin accessibility in immortalized (BEAS-2B), normal (NHBEC), and asthma (AAEC) bronchial epithelial cells cultured and stimulated with calcitriol, poly I:C (to simulate viral infection), both, or sham (culture media), as well as the effect on gene expression. Overall design: ATAC-Seq and total RNA-Seq were performed on 4 asthma human bronchial epithelial cell samples (AAEC), 4 normal human bronchial epithelial cell samples (NHBEC) and 4 immortalized (BEAS-2B) samples, respectively treated with calcitriol, poly I:C, both or sham (culture media).
+
+**Overview of the different treatments and cell lines for the experiment:**
+
+Cell lines:
+
+- Normal human bronchial epithelial
+- Asthma human bronchial epithelial
+- BEAS-2B immortalized human bronchial epithelial
+
+Treatments:
+
+- Vitamin D3 or calcitriol
+- Poly (I:C)
+- calcitriol + Poly (I:C)
+- Sham (cultured media)
 
 ---
 
 # Reduced Protocol
 
 ## Previous Steps
-The fist part of the analysis consist in the preparation of a [RangedSummarizedExperiment](https://www.bioconductor.org/packages/devel/bioc/vignettes/SummarizedExperiment/inst/doc/SummarizedExperiment.html) (RSE) object. The code an a more information about this step can be found in the R script named: `main_script.R`, which code will be pasted below with additional comments: 
+The fist part of the analysis consisted in the preparation of a [RangedSummarizedExperiment](https://www.bioconductor.org/packages/devel/bioc/vignettes/SummarizedExperiment/inst/doc/SummarizedExperiment.html) (RSE) object. The code for this step can be found in the R script named: `main_script.R`, for which fragments will be pasted below with additional comments relevant to the analysis: 
 
-```{R message=FALSE, warning=FALSE}
+### Load Packages
+```{R, message=FALSE, warning=FALSE}
 ## ---------------------------------
-##            Set Path
+##            Path
 ## ---------------------------------
 setwd("~/Desktop/Bioconductor_Final_project")
 ## ---------------------------------
 ##           R_packages
 ## ---------------------------------
 library("recount3")
-library(ExploreModelMatrix)
 library("edgeR")
+library("limma")
+library("ggplot2")
+library("pheatmap")
+library("ExploreModelMatrix")
 ```
 
-```{R}
+### RSE object creation
+
+```{R RSE object creation, message=FALSE, warning=FALSE}
 ## ---------------------------------
 ##         Data_Download
 ## ---------------------------------
-## Project: SRP124965
+# Download list of all human experiments
 human_projects <- available_projects()
 
-## Create a RangedSummarizedExperiment (RSE) object
+## Create a RangedSummarizedExperiment (RSE) object using the ID
+## of the choosen project
 project_vit_D <- create_rse(subset(human_projects,
   project == "SRP124965" & project_type == "data_sources"
 ))
 ```
 
 
+### Explore and Modify the RSE object
+
+```{R Explore_object, message=FALSE}
+## ----------------------------------------
+##             Explore_object
+## ----------------------------------------
+
+project_vit_D
+
+```
+The previous results revealed that converting the provided counts from base-pair count to read count is a necessary step.
+
+```{R, message=FALSE, warning=FALSE}
+## ------Change_to_read_counts------
+assay(project_vit_D, "counts") <- compute_read_counts(project_vit_D)
+
+##-------Facilitate Metadata access------
+# project_vit_D$sra.sample_attributes[1:12] # inspect attributes
+expand_sra_attributes(project_vit_D) ## No problems with the Data
+## The metadata in the single the SRA (Sequence Read Archive) column is 
+## separated into several ones in colData
+project_vit_D <- expand_sra_attributes(project_vit_D)
+
+## Showcases resultant columns 
+colData(project_vit_D)[
+  ,
+  grepl("^sra_attribute", colnames(colData(project_vit_D)))
+]
+```
+For the `sra_attribute columns` of interest, a change of type is needed, as they are categorical variables. Additionally a calculation is needed to determine the assigned gene proportion.
+
+```{r}
+## Change character to factor
+project_vit_D$sra_attribute.cell_type <- factor(project_vit_D$sra_attribute.cell_type)
+project_vit_D$sra_attribute.treatment <- factor(project_vit_D$sra_attribute.treatment)
+project_vit_D$sra_attribute.source_name <- factor(project_vit_D$sra_attribute.source_name)
+
+## Proportion of lectures assigned to genes
+project_vit_D$assigned_gene_prop<-project_vit_D$recount_qc.gene_fc_count_all.assigned / project_vit_D$recount_qc.gene_fc_count_all.total
+summary(project_vit_D$assigned_gene_prop)
+## Note: The best sample has around 0.6430 of lectures assigned and 75% of the samples have less than 0.5697 assigned
+
+## save data
+unfiltered_vitamin_D<-project_vit_D
+
+```
+
+
+```{R}
+##-------------------------------------------
+##                  Filtering
+##-------------------------------------------
+hist(project_vit_D$assigned_gene_prop)
+## In this step two options were plausible: Don't Filter and Filtering those below the Mean
+## further analysis on both can be found at the no_filter.R and Below_Mean.R scripts
+
+## get the mean
+summary(unfiltered_vitamin_D$assigned_gene_prop) 
+## Create object for this alternative analysis
+below_MEAN_project_vit_D<-project_vit_D
+```
+
+As shown before in the histogram, the values are mainly between 0.3 and 0.65, with no indications of obvious extreme or outliers. Therefore two options for the filtering process arise:
+
+- Only delete those genes with an expression below the 0.1
+- Filter those samples below the Mean and then delete those genes with an expression below 0.1
+
+The code for the fist option its available at the script `no_filter.R` and for the second option at the script `Below_Mean.R` 
+
+Both scripts will be pasted below, with additional comments.
+
+## Filtering
+
+### No_filter script: Only delete those genes with an expression below the first quantile
+
+```{R message=FALSE, warning=FALSE}
+## ----------------------------------------
+##        option 1: Don't Filter
+## ----------------------------------------
+## We are gonna continue with the Option: `Don't Filter`
+## further analysis of the Option 2: `Filtering those below the Mean`
+## is in the script Below_Mean.R
+
+## Save the average expression of a gene in all samples
+gene_means <- rowMeans(assay(project_vit_D, "counts"))
+summary(gene_means)
+```
+
+Filter genes with a low expression, get the percent of remaining genes after filtering and the number of samples left.
+```{R message=FALSE, warning=FALSE}
+## Delete genes with low mean expression
+project_vit_D <- project_vit_D[gene_means > 0.1, ]
+
+## Percent of remaining genes after filtering:
+round(nrow(project_vit_D) / nrow(unfiltered_vitamin_D) * 100, 2)
+
+# Number of samples:
+dim(project_vit_D)
+```
+
+57.68 % of remaining genes and no samples deleted
+
+### Below Mean script: Filter those samples below the Mean and then delete those genes with an expression below 0.1
+
+```{R message=FALSE, warning=FALSE}
+## ----------------------------------------
+## option 2: Filtering those below the Mean
+## ----------------------------------------
+## We are gonna continue with the Option: `Filtering those below the Mean`
+## further analysis of the Option 1: `Filtering those below the Mean` is in the script no_filter.R
+
+## Filter those below the mean (0.4891) using 0.4 instead of the complete number
+below_MEAN_project_vit_D <- below_MEAN_project_vit_D[, below_MEAN_project_vit_D$assigned_gene_prop > 0.4]
+## Save the average expression of a gene in all samples
+gene_means_BM <- rowMeans(assay(below_MEAN_project_vit_D, "counts"))
+## Delete genes with low mean expression
+below_MEAN_project_vit_D <- below_MEAN_project_vit_D[gene_means_BM > 0.1, ]
+## Percent of remaining genes:
+round(nrow(below_MEAN_project_vit_D) / nrow(unfiltered_vitamin_D) * 100, 2)
+```
+
+
+## Filtering and Normalization
 
 # Conclusions

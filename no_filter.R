@@ -14,12 +14,13 @@ summary(gene_means)
 
 ## Delete genes with low mean expression
 project_vit_D <- project_vit_D[gene_means > 0.1, ]
-## Percent of remaining genes:
+## Percent of remaining genes after filtering:
 round(nrow(project_vit_D) / nrow(unfiltered_vitamin_D) * 100, 2) ## 57.68%
 
 # Number of samples:
 dim(project_vit_D)
 ## 36834    12
+
 ## ----------------------------------------
 ##          Data Normalization
 ## ----------------------------------------
@@ -46,8 +47,24 @@ ggplot(as.data.frame(colData(project_vit_D)),
 ## ----------------------------
 ## Creating the statistic model
 ## ----------------------------
+## ----------------------------
+##        MODEL MATRIX
+## ----------------------------
+
+df <- as.data.frame(colData(project_vit_D)[, c("sra_attribute.cell_type", "sra_attribute.treatment", "assigned_gene_prop")])
+colnames(df)<- c("cell_type", "Treatment", "gene_prop")
+
+M_matrix <- ExploreModelMatrix::VisualizeDesign(
+  sampleData = df,
+  designFormula = ~ 0 + cell_type + Treatment + cell_type:Treatment,
+  textSizeFitted = 2
+)
+
+cowplot::plot_grid(plotlist = M_matrix$plotlist)
+
 ## Model as a Function of the variables treatment, cell_type and assigned_gene_prop
-models <- model.matrix(~ sra_attribute.cell_type + sra_attribute.treatment + assigned_gene_prop,
+models <- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment +
+                         sra_attribute.cell_type:sra_attribute.treatment,
                     data = colData(project_vit_D)
                     )
 ## names of the columns in the matrix
@@ -121,13 +138,3 @@ pheatmap(
   show_colnames = FALSE,
   annotation_col = DE_no_filter_df ## labels
 )
-## ----------------------------
-##        MODEL MATRIX
-## ----------------------------
-M_matrix <- ExploreModelMatrix::VisualizeDesign(
-  sampleData = DE_no_filter_df,
-  designFormula = ~ 0 + cell_type + Treatment,
-  textSizeFitted = 2
-)
-
-cowplot::plot_grid(plotlist = M_matrix$plotlist)
