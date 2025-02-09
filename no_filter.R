@@ -31,6 +31,10 @@ dge<-DGEList(
 )
 ## Normalization with the TMM method (default)
 dge <- calcNormFactors(dge)
+
+## ----------------------------------------
+##    Differential expression analysis
+## ----------------------------------------
 ## ----------------------------
 ##            Graph
 ## ----------------------------
@@ -47,21 +51,6 @@ ggplot(as.data.frame(colData(project_vit_D)),
 ## ----------------------------
 ## Creating the statistic model
 ## ----------------------------
-## ----------------------------
-##        MODEL MATRIX
-## ----------------------------
-
-df <- as.data.frame(colData(project_vit_D)[, c("sra_attribute.cell_type", "sra_attribute.treatment", "assigned_gene_prop")])
-colnames(df)<- c("cell_type", "Treatment", "gene_prop")
-
-M_matrix <- ExploreModelMatrix::VisualizeDesign(
-  sampleData = df,
-  designFormula = ~ 0 + cell_type + Treatment + cell_type:Treatment,
-  textSizeFitted = 2
-)
-
-cowplot::plot_grid(plotlist = M_matrix$plotlist)
-
 ## Model as a Function of the variables treatment, cell_type and assigned_gene_prop
 models <- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment +
                          sra_attribute.cell_type:sra_attribute.treatment,
@@ -69,9 +58,7 @@ models <- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment +
                     )
 ## names of the columns in the matrix
 colnames(models)
-## ----------------------------------------
-##    Differential expression analysis
-## ----------------------------------------
+
 ## ----------------------------
 ##            Graph
 ## ----------------------------

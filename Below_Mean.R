@@ -30,6 +30,10 @@ dge_BM<-DGEList(
 )
 ## Normalization with the TMM method (default)
 dge_BM <- calcNormFactors(dge_BM)
+
+## ----------------------------------------
+##    Differential expression analysis
+## ----------------------------------------
 ## ----------------------------
 ##            Graph
 ## ----------------------------
@@ -52,9 +56,7 @@ models_BM<- model.matrix(~ sra_attribute.cell_type + sra_attribute.treatment + a
 )
 ## names of the columns in the matrix
 # colnames(models_BM)
-## ----------------------------------------
-##    Differential expression analysis
-## ----------------------------------------
+
 ## ----------------------------
 ##            Graph
 ## ----------------------------

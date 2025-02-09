@@ -59,11 +59,26 @@ summary(project_vit_D$assigned_gene_prop)
 unfiltered_vitamin_D<-project_vit_D
 ## project_vit_D<-unfiltered_vitamin_D # reverse
 
+## ----------------------------
+##        MODEL MATRIX
+## ----------------------------
+
+df <- as.data.frame(colData(project_vit_D)[, c("sra_attribute.cell_type", "sra_attribute.treatment", "assigned_gene_prop")])
+colnames(df)<- c("cell_type", "Treatment", "gene_prop")
+
+M_matrix <- ExploreModelMatrix::VisualizeDesign(
+  sampleData = df,
+  designFormula = ~ 0 + cell_type + Treatment + cell_type:Treatment,
+  textSizeFitted = 2
+)
+
+cowplot::plot_grid(plotlist = M_matrix$plotlist)
+
 ##-------------------------------------------
 ##                  Filtering
 ##-------------------------------------------
 hist(project_vit_D$assigned_gene_prop)
-## In this step two options were plausible: Don't Filter and Filtering those below the Mean
+## In this step two options were plausible: Don't Filter samples and Filtering those below the Mean
 ## further analysis on both can be found at the no_filter.R and Below_Mean.R scripts
 
 ## get the mean

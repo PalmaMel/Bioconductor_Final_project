@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: '5'
     df_print: paged
-toc-title: Index
+toc-title: "Contents"
 ---
 
 # Differential expression analysis of the [recount3](https://doi.org/doi:10.18129/B9.bioc.recount3) project: **SRP124965**
@@ -126,7 +126,7 @@ unfiltered_vitamin_D<-project_vit_D
 ##                  Filtering
 ##-------------------------------------------
 hist(project_vit_D$assigned_gene_prop)
-## In this step two options were plausible: Don't Filter and Filtering those below the Mean
+## In this step two options were plausible: Don't Filter samples and Filtering those below the Mean
 ## further analysis on both can be found at the no_filter.R and Below_Mean.R scripts
 
 ## get the mean
@@ -146,13 +146,13 @@ Both scripts will be pasted below, with additional comments.
 
 ## Filtering
 
-### No_filter script: Only delete those genes with an expression below the first quantile
+### Script 1: Don't Filter samples and Delete genes with a low expression
 
-```{R message=FALSE, warning=FALSE}
+```{R no_filter 1, message=FALSE, warning=FALSE}
 ## ----------------------------------------
 ##        option 1: Don't Filter
 ## ----------------------------------------
-## We are gonna continue with the Option: `Don't Filter`
+## We are gonna continue with the Option: `Don't Filter samples`
 ## further analysis of the Option 2: `Filtering those below the Mean`
 ## is in the script Below_Mean.R
 
@@ -162,7 +162,7 @@ summary(gene_means)
 ```
 
 Filter genes with a low expression, get the percent of remaining genes after filtering and the number of samples left.
-```{R message=FALSE, warning=FALSE}
+```{R no_filter 2, message=FALSE, warning=FALSE}
 ## Delete genes with low mean expression
 project_vit_D <- project_vit_D[gene_means > 0.1, ]
 
@@ -175,7 +175,7 @@ dim(project_vit_D)
 
 57.68 % of remaining genes and no samples deleted
 
-### Below Mean script: Filter those samples below the Mean and then delete those genes with an expression below 0.1
+### Script 2: Filter those samples below the Mean and Delete genes with a low expression
 
 ```{R message=FALSE, warning=FALSE}
 ## ----------------------------------------
@@ -183,18 +183,123 @@ dim(project_vit_D)
 ## ----------------------------------------
 ## We are gonna continue with the Option: `Filtering those below the Mean`
 ## further analysis of the Option 1: `Filtering those below the Mean` is in the script no_filter.R
-
 ## Filter those below the mean (0.4891) using 0.4 instead of the complete number
 below_MEAN_project_vit_D <- below_MEAN_project_vit_D[, below_MEAN_project_vit_D$assigned_gene_prop > 0.4]
 ## Save the average expression of a gene in all samples
 gene_means_BM <- rowMeans(assay(below_MEAN_project_vit_D, "counts"))
+```
+
+Filter genes with a low expression, get the percent of remaining genes after filtering and the number of samples left.
+
+```{R message=FALSE, warning=FALSE}
 ## Delete genes with low mean expression
 below_MEAN_project_vit_D <- below_MEAN_project_vit_D[gene_means_BM > 0.1, ]
 ## Percent of remaining genes:
 round(nrow(below_MEAN_project_vit_D) / nrow(unfiltered_vitamin_D) * 100, 2)
+# Number of samples:
+dim(below_MEAN_project_vit_D)
+```
+
+57.41%  of remaining genes and 3 samples deleted
+
+## Filtering and Normalization
+After filtering we continue with the normalization step, again both options separated in the scripts mentioned before.
+
+### 1. Script 1: Don't Filter samples and Delete genes with a low expression
+
+```{R no_filter 3, message=FALSE, warning=FALSE}
+## ----------------------------------------
+##          Data Normalization
+## ----------------------------------------
+## edgeR object creation
+dge<-DGEList(
+  counts = assay(project_vit_D, "counts"),
+  genes = rowData(project_vit_D)
+)
+## Normalization with the TMM method (default)
+dge <- calcNormFactors(dge)
+```
+
+### 2. Script 2: Filter those samples below the Mean and Delete genes with a low expression
+```{R message=FALSE, warning=FALSE}
+## ----------------------------------------
+##          Data Normalization
+## ----------------------------------------
+## edgeR object creation
+dge_BM<-DGEList(
+  counts = assay(below_MEAN_project_vit_D, "counts"),
+  genes = rowData(below_MEAN_project_vit_D)
+)
+## Normalization with the TMM method (default)
+dge_BM <- calcNormFactors(dge_BM)
 ```
 
 
-## Filtering and Normalization
+#### Boxplots
 
-# Conclusions
+The boxplots below helps us visualize the distibution between the our samples, treatments and gene proportion. Visually, we identify the samples that were deleted in the previous filtering step in the Option 2.
+
+```{R no_filter 4, message=FALSE, warning=FALSE}
+## ----------------------------------------
+##    Differential expression analysis
+## ----------------------------------------
+## ----------------------------
+##            Graph
+## ----------------------------
+## -------------boxplot---------------
+ggplot(as.data.frame(colData(project_vit_D)),
+       aes(x = sra_attribute.treatment,y = assigned_gene_prop, color = sra_attribute.treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ sra_attribute.cell_type) + # subgraph for each celltype
+  theme_bw() +
+  labs(title = "Op.1 Distribution of Assigned Gene Prop according to Treatment and Cell Type",
+       x = "Treatment", y = "Assigned Gene Prop") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # labels and text
+
+```
+
+
+```{R message=FALSE, warning=FALSE}
+## ----------------------------------------
+##    Differential expression analysis
+## ----------------------------------------
+## ----------------------------
+##            Graph
+## ----------------------------
+## -------------boxplot---------------
+ggplot(as.data.frame(colData(below_MEAN_project_vit_D)),
+       aes(x = sra_attribute.treatment,y = assigned_gene_prop, color = sra_attribute.treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ sra_attribute.cell_type) + # subgraph for each celltype
+  theme_bw() +
+  labs(title = "Op.2 Below Mean: Distribution of Assigned Gene Prop according to Treatment and Cell Type",
+       x = "Treatment", y = "Assigned Gene Prop") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # labels and text
+
+```
+
+## Differential expression analysis
+
+The following design models how each treatment affects each cell type independently and whether there are specific effects of the combination of treatment and cell type, as stated in the objective of the analysis.
+
+### 1. Script 1: Don't Filter samples and Delete genes with a low expression
+
+```{R no_filter 5}
+## ----------------------------
+## Creating the statistic model
+## ----------------------------
+
+## Model as a Function of the variables treatment, cell_type and assigned_gene_prop
+models <- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment +
+                         sra_attribute.cell_type:sra_attribute.treatment,
+                    data = colData(project_vit_D)
+                    )
+```
+
+### 2. Script 2: Filter those samples below the Mean and Delete genes with a low expression
+
+## Heatmap and final graphics
+
+
+
+# Biological Conclusions
