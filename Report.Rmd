@@ -12,7 +12,7 @@ toc-title: "Contents"
 
 # Differential expression analysis of the [recount3](https://doi.org/doi:10.18129/B9.bioc.recount3) project: **SRP124965**
 
-A Differential expression analysis was conducted on the study **"Epigenome-wide Effects of Vitamin-D on Bronchial Epithelial Cells using ATAC-Seq and RNA-seq"**, obtained from the [Recount3 Study Explorer](https://jhubiostatistics.shinyapps.io/recount3-study-explorer/), to  assess the effect of Vitamin D3 (also refereed as calcitriol) across different cell lines of human bronchial epithelial cells, utilizing various [Bioconductor](https://bioconductor.org) tools. 
+A Differential expression analysis was conducted on the study **"Epigenome-wide Effects of Vitamin-D on Bronchial Epithelial Cells using ATAC-Seq and RNA-seq"**, obtained from the [Recount3 Study Explorer](https://jhubiostatistics.shinyapps.io/recount3-study-explorer/), to assess the effect of Vitamin D3 (also refereed as calcitriol) across different cell lines of human bronchial epithelial cells, utilizing various [Bioconductor](https://bioconductor.org) tools. 
 
 **Project description in the Recount3:**
 Vitamin D has been associated with viral respiratory infections, the main cause of severe asthma exacerbations in children. We used ATAC-Seq to evaluate the effect of vitamin D on chromatin accessibility in immortalized (BEAS-2B), normal (NHBEC), and asthma (AAEC) bronchial epithelial cells cultured and stimulated with calcitriol, poly I:C (to simulate viral infection), both, or sham (culture media), as well as the effect on gene expression. Overall design: ATAC-Seq and total RNA-Seq were performed on 4 asthma human bronchial epithelial cell samples (AAEC), 4 normal human bronchial epithelial cell samples (NHBEC) and 4 immortalized (BEAS-2B) samples, respectively treated with calcitriol, poly I:C, both or sham (culture media).
@@ -49,11 +49,12 @@ setwd("~/Desktop/Bioconductor_Final_project")
 ##           R_packages
 ## ---------------------------------
 library("recount3")
-library("edgeR")
 library("limma")
+library("edgeR")
 library("ggplot2")
 library("pheatmap")
 library("ExploreModelMatrix")
+library("variancePartition")
 ```
 
 ### RSE object creation
@@ -280,39 +281,206 @@ ggplot(as.data.frame(colData(below_MEAN_project_vit_D)),
 
 ## Differential expression analysis
 
-The following design models how each treatment affects each cell type independently and whether there are specific effects of the combination of treatment and cell type, as stated in the objective of the analysis.
+Initially the chosen model was: 
+`~ 0 + sra_attribute.cell_type + sra_attribute.treatment + sra_attribute.cell_type:sra_attribute.treatment + assigned_gene_prop`. However the following error arose:  
+`Error in .ebayes(fit = fit, proportion = proportion, stdev.coef.lim = stdev.coef.lim,  : No residual degrees of freedom in linear model fits` After tracing back the error origin ,its appears that linear model lacks sufficient residual degrees of freedom to estimate the variability and perform the Bayes correction, since each combination has only one replicate.
 
-### 1. Script 1: Don't Filter samples and Delete genes with a low expression
+The same error repeats in both cases worked on this analysis. 
 
-```{R no_filter 5}
+### Correction of the objective
+
+To assess the effect of Vitamin D3 across different cell lines of human bronchial epithelial cells, as stated in our objective, a necessary step is revaluate our model.
+
+One option, is to use the following model `~ 0 + sra_attribute.cell_type + sra_attribute.treatment`, which assumes that the effects of Vitamin D3 are the same for all cell types. This model is useful to asses the effects of cell types and treatment on gene expression.
+
+This model is used on the scripts no_filter and below_Mean. And its code and results will be shown:
+For the first script: no_filter
+```{R}
 ## ----------------------------
 ## Creating the statistic model
 ## ----------------------------
-
 ## Model as a Function of the variables treatment, cell_type and assigned_gene_prop
-models <- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment +
-                         sra_attribute.cell_type:sra_attribute.treatment,
+models <- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment + assigned_gene_prop,
                     data = colData(project_vit_D)
                     )
-```
+## names of the columns in the matrix
+colnames(models)
 
-### 2. Script 2: Filter those samples below the Mean and Delete genes with a low expression
+## ----------------------------
+##            Graph
+## ----------------------------
+## -----Dispersion graph of mean-variance trend----
+vGene <- voom(dge, models, plot = TRUE)
+## ----DE-----
+## Fitting a linear Model and using an empirical Bayes Method
+eb_results <- eBayes(lmFit(vGene))
+## Extract a table of the DE genes
+de_results <- topTable(
+  eb_results,
+  coef = 2,
+  number = nrow(project_vit_D),
+  sort.by = "none"
+)
+```
+For the second script: Below_mean
 
 ```{R}
 ## ----------------------------
 ## Creating the statistic model
 ## ----------------------------
 ## Model as a Function of the variables treatment, cell_type and assigned_gene_prop
-models_BM<- model.matrix (~ 0 + sra_attribute.cell_type + sra_attribute.treatment +
-                         sra_attribute.cell_type:sra_attribute.treatment,
+models_BM<- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment,
                            data = colData(below_MEAN_project_vit_D)
 )
 ## names of the columns in the matrix
-colnames(models_BM)
+# colnames(models_BM)
+
+## ----------------------------
+##            Graph
+## ----------------------------
+## Dispersion graph of mean-variance trend
+vGene_BM <- voom(dge_BM, models_BM, plot = TRUE)
+## ----DE-----
+## Fitting a linear Model and using an empirical Bayes Method
+eb_results_BM <- eBayes(lmFit(vGene_BM))
+## Extract a table of the DE genes
+de_results_BM <- topTable(
+  eb_results_BM,
+  coef = 2,
+  number = nrow(below_MEAN_project_vit_D),
+  sort.by = "none"
+)
+```
+
+Another option, and the one more suitable for this analysis is [variancePartition](https://bioconductor.org/packages/release/bioc/vignettes/variancePartition/inst/doc/variancePartition.html), which allows us consider the effects of different cell lines on gene expression using a linear mixed model, and is more suited for data with less replicates. 
+
+For the data generated in the first script: no_filter:
+
+```{R no_filter 5, include=FALSE}
+## Load library
+library("variancePartition")
+
+## VariancePartition Model 
+## Specify variables to consider
+model <- ~ sra_attribute.treatment + (1 | sra_attribute.cell_type) + assigned_gene_prop
+## Models treatment as the fixed effect and cell types as the random effects
+## For each cell type, there is a baseline expression level that the model will adjust for
+## ----------------------------
+##            Graph
+## ----------------------------
+## -----Dispersion graph of mean-variance trend----
+vGene <- voom(dge, plot = TRUE) 
+fit <- dream(vGene, model, colData(project_vit_D))  # Model adjustment
+print(fit)
+fit <- eBayes(fit)
+results <- topTable(fit, coef = "sra_attribute.treatment", number = Inf)
+```
+
+
+# Results
+```{R}
+## ----------------------------------------
+##               Results
+## ----------------------------------------
+## ---------------------------
+##            Graph
+## ---------------------------
+## Relationship between average and the change in gene expression
+plotMA(eb_results, coef = 2)
+## ----------------------------
+##            Graph
+## ---------------------------
+## ----Volcano Plot----
+## Statistical significance and magnitude of the change in expression
+## highlight 3 of the most significant genes
+volcanoplot(eb_results, coef = 2, highlight = 3, names = de_results$gene_name)
+```
+
+```{R}
+# ----------------------------------------
+##               Results
+## ----------------------------------------
+## ---------------------------
+##            Graph
+## ---------------------------
+## Relationship between average and the change in gene expression
+plotMA(eb_results_BM, coef = 2)
+## ----------------------------
+##            Graph
+## ---------------------------
+## ----Volcano Plot----
+## Statistical significance and magnitude of the change in expression
+## highlight 3 of the most significant genes
+volcanoplot(eb_results_BM, coef = 2, highlight = 3, names = de_results_BM$gene_name)
 ```
 
 ## Heatmap and final graphics
 
+Continuing this analysis with the 
+```{R message=FALSE, warning=FALSE}
+## ----------------------------------------
+##          Visualizing DE genes
+## ----------------------------------------
+## ----------------------------
+##            Graph
+## ---------------------------
+## ----Heatmap----
+DE_no_filter_df <- as.data.frame(colData(project_vit_D)[, c("sra_attribute.cell_type", "sra_attribute.treatment", "assigned_gene_prop")])
 
+colnames(DE_no_filter_df) <- c("cell_type", "Treatment", "gene_prop")
+## get the 50 most significant genes
+exprs_heatmap <- vGene$E[rank(de_results$adj.P.Val) <= 50, ]
+
+identical(rowRanges(project_vit_D)$gene_id, de_results$gene_id)
+
+## Change IDs to names
+gene_names <- rownames(exprs_heatmap)
+rownames(exprs_heatmap) <- rowRanges(project_vit_D)$gene_name[
+  match(rownames(exprs_heatmap), rowRanges(project_vit_D)$gene_id)
+]
+## Create Heatmap
+pheatmap(
+  exprs_heatmap,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  show_rownames = TRUE,
+  show_colnames = FALSE,
+  annotation_col = DE_no_filter_df ## labels
+)
+
+```
+
+```{R message=FALSE, warning=FALSE}
+## ----------------------------------------
+##          Visualizing DE genes
+## ----------------------------------------
+## ----------------------------
+##            Graph
+## ---------------------------
+## ----Heatmap----
+DE_below_MEan_df <- as.data.frame(colData(
+  below_MEAN_project_vit_D)[, c("sra_attribute.cell_type", "sra_attribute.treatment", "assigned_gene_prop")])
+
+colnames(DE_below_MEan_df) <- c("cell_type", "Treatment", "gene_prop")
+## get the 50 most significant genes
+BM_exprs_heatmap <- vGene_BM$E[rank(de_results_BM$adj.P.Val) <= 50, ]
+
+# identical(rowRanges(below_MEAN_project_vit_D)$gene_id, de_results_BM$gene_id)
+
+## Change IDs to names
+gene_names_BM <- rownames(BM_exprs_heatmap)
+rownames(BM_exprs_heatmap) <- rowRanges(below_MEAN_project_vit_D)$gene_name[
+  match(rownames(BM_exprs_heatmap), rowRanges(below_MEAN_project_vit_D)$gene_id)
+]
+## Create Heatmap
+pheatmap(
+  BM_exprs_heatmap,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  show_rownames = TRUE,
+  show_colnames = FALSE,
+  annotation_col = DE_below_MEan_df ## labels
+)
+```
 
 # Biological Conclusions
