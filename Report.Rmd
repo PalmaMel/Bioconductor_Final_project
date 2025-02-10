@@ -317,10 +317,12 @@ eb_results <- eBayes(lmFit(vGene))
 ## Extract a table of the DE genes
 de_results <- topTable(
   eb_results,
-  coef = 2,
+  coef = 7,
   number = nrow(project_vit_D),
   sort.by = "none"
 )
+dim (de_results)
+head (de_results)
 ```
 For the second script: Below_mean
 
@@ -329,7 +331,7 @@ For the second script: Below_mean
 ## Creating the statistic model
 ## ----------------------------
 ## Model as a Function of the variables treatment, cell_type and assigned_gene_prop
-models_BM<- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment,
+models_BM<- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment + assigned_gene_prop,
                            data = colData(below_MEAN_project_vit_D)
 )
 ## names of the columns in the matrix
@@ -346,15 +348,19 @@ eb_results_BM <- eBayes(lmFit(vGene_BM))
 ## Extract a table of the DE genes
 de_results_BM <- topTable(
   eb_results_BM,
-  coef = 2,
+  coef = 7,
   number = nrow(below_MEAN_project_vit_D),
   sort.by = "none"
 )
+dim (de_results_BM)
+head (de_results_BM)
 ```
 
 Another option, and the one more suitable for this analysis is [variancePartition](https://bioconductor.org/packages/release/bioc/vignettes/variancePartition/inst/doc/variancePartition.html), which allows us consider the effects of different cell lines on gene expression using a linear mixed model, and is more suited for data with less replicates. 
 
-For the data generated in the first script: no_filter:
+To avoid over complicating the analysis, we will only provide a glimpse of how the code would look if this model were used.
+
+For the data generated in the first script: no_filter
 
 ```{R no_filter 5, include=FALSE}
 ## Load library
@@ -362,23 +368,30 @@ library("variancePartition")
 
 ## VariancePartition Model 
 ## Specify variables to consider
-model <- ~ sra_attribute.treatment + (1 | sra_attribute.cell_type) + assigned_gene_prop
+model_mixed <- ~ sra_attribute.treatment + (1 | sra_attribute.cell_type) + assigned_gene_prop
 ## Models treatment as the fixed effect and cell types as the random effects
 ## For each cell type, there is a baseline expression level that the model will adjust for
 ## ----------------------------
 ##            Graph
 ## ----------------------------
 ## -----Dispersion graph of mean-variance trend----
-vGene <- voom(dge, plot = TRUE) 
-fit <- dream(vGene, model, colData(project_vit_D))  # Model adjustment
+vGene_mixed <- voom(dge, plot = TRUE) 
+fit <- dream(vGene_mixed, model_mixed, colData(project_vit_D))  # Model adjustment
 print(fit)
 fit <- eBayes(fit)
 results <- topTable(fit, coef = "sra_attribute.treatment", number = Inf)
 ```
 
-
 # Results
+
+We can proceed with the visualization of the statistical results.
+
+
+For the data generated in the first script: no_filter
+
 ```{R}
+##  Count the number of genes with a p-value less than 0.05
+table(de_results$adj.P.Val < 0.05)
 ## ----------------------------------------
 ##               Results
 ## ----------------------------------------
@@ -395,8 +408,12 @@ plotMA(eb_results, coef = 2)
 ## highlight 3 of the most significant genes
 volcanoplot(eb_results, coef = 2, highlight = 3, names = de_results$gene_name)
 ```
+Number of Differentially Expressed genes: 24366 
+
+### For the data generated in the first script: Below_Mean
 
 ```{R}
+table(de_results_BM$adj.P.Val < 0.05)
 # ----------------------------------------
 ##               Results
 ## ----------------------------------------
@@ -413,10 +430,13 @@ plotMA(eb_results_BM, coef = 2)
 ## highlight 3 of the most significant genes
 volcanoplot(eb_results_BM, coef = 2, highlight = 3, names = de_results_BM$gene_name)
 ```
+Number of Differentially Expressed genes: 37197 
 
 ## Heatmap and final graphics
 
 Continuing this analysis with the 
+
+For the data generated in the first script: no_filter
 ```{R message=FALSE, warning=FALSE}
 ## ----------------------------------------
 ##          Visualizing DE genes
@@ -449,7 +469,7 @@ pheatmap(
 )
 
 ```
-
+For the data generated in the first script: Below_Mean
 ```{R message=FALSE, warning=FALSE}
 ## ----------------------------------------
 ##          Visualizing DE genes

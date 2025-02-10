@@ -52,7 +52,8 @@ ggplot(as.data.frame(colData(project_vit_D)),
 ## Creating the statistic model
 ## ----------------------------
 ## Model as a Function of the variables treatment, cell_type and assigned_gene_prop
-models <- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment,
+colData(project_vit_D)$sra_attribute.treatment <- factor(colData(project_vit_D)$sra_attribute.treatment)
+models <- model.matrix(~ 0 + sra_attribute.cell_type + sra_attribute.treatment + assigned_gene_prop,
                     data = colData(project_vit_D)
                     )
 ## names of the columns in the matrix
